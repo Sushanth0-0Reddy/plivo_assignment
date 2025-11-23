@@ -1,0 +1,141 @@
+# ============================================================
+# METHOD 2: TEMPLATE OVERLAP ALLOWED (Easier - Tests Recognition)
+# ============================================================
+# Train and Dev/Test use THE SAME template patterns but different entity values
+# This tests if the model can recognize PII in familiar sentence structures
+# 
+# Use Case: Test model's PII detection accuracy without confounding generalization
+# Trade-off: Easier to achieve high scores, but may overfit to templates
+
+# ========== DATASET SIZE ==========
+dataset:
+  train_size: 900        # 500-1000 per assignment constraint
+  dev_size: 150          # 100-200 per assignment constraint
+  test_size: 150
+  output_dir: "data_method2_overlap"
+  
+  # Template strategy
+  template_strategy: "allow_overlap"  # All splits can use all templates
+
+# ========== RANDOM SEEDS ==========
+# IMPORTANT: Different seeds ensure different entity values even with same templates
+# Train: "my name is John Smith"
+# Dev:   "my name is Alice Johnson" (same template, different entities)
+seeds:
+  train_seed: 13
+  dev_seed: 42
+  test_seed: 77
+
+# ========== STT NOISE SIMULATION ==========
+stt_noise:
+  # --- DIGIT HANDLING ---
+  # Probability of keeping digits as-is (vs converting to words)
+  # 0.0 = always words ("one two three")
+  # 1.0 = always numeric ("123")
+  # Example: "4321" → "four three two one" (when < digit_to_word_ratio)
+  digit_to_word_ratio: 0.5
+  
+  # When digits ARE spoken, probability of saying "oh" instead of "zero"
+  # Example: "0" → "oh" (vs "zero")
+  zero_to_oh_ratio: 0.1
+  
+  # --- CONVERSATIONAL NOISE ---
+  # Probability of inserting filler words ("uh", "hmm", "like", "you know")
+  # Simulates natural speech disfluencies
+  # Example: "my card is" → "my card uh is" or "like my card is"
+  filler_ratio: 0.3
+  
+  # --- CAPITALIZATION ---
+  # Probability of lowercasing entity names
+  # STT often fails to preserve proper capitalization
+  # Example: "John Smith" → "john smith"
+  lowercase_ratio: 1.0
+  
+  # --- SEMANTIC CONSISTENCY ---
+  # Probability that email address contains the person's name
+  # Creates realistic semantic relationships between entities
+  # Example: "John Smith" → "john.smith@gmail.com" (vs random "xyz@example.com")
+  email_semantic_link: 0.6
+  
+  # --- ENTITY-SPECIFIC NOISE ---
+  # Credit card: probability digits are spoken vs space-separated
+  # 0.5 = "four three two one" (spoken) OR "4 3 2 1" (spaced)
+  spoken_card_ratio: 0.5
+  
+  # Phone: probability digits are spoken vs space-separated
+  spoken_phone_ratio: 0.5
+  
+  # Date: probability of spoken format vs numeric
+  # Example: "twenty fifth january two zero two four" vs "25 01 2024"
+  spoken_date_ratio: 0.5
+  
+  # Location: probability location name includes city
+  # Example: "central mall atlanta" vs "central mall"
+  location_with_city_ratio: 0.4
+  
+  # --- STT SPACING ERRORS ---
+  # Extra spaces inserted between words (STT transcription errors)
+  # Example: "john smith" → "john  smith" (double space)
+  extra_space_ratio: 0.15
+  
+  # Missing spaces between words (STT word boundary errors)
+  # Example: "john smith" → "johnsmith"
+  missing_space_ratio: 0.1
+  
+  # Variable spacing around "at" in emails (inconsistent STT output)
+  # Example: "john at gmail" vs "john  at  gmail" vs "john at gmail"
+  at_spacing_variation: 0.3
+
+# ========== NOISE PRESETS ==========
+presets:
+  clean:
+    description: "Minimal noise - easier for model"
+    digit_to_word_ratio: 0.2
+    filler_ratio: 0.1
+    lowercase_ratio: 0.5
+    spoken_card_ratio: 0.2
+    spoken_phone_ratio: 0.2
+    extra_space_ratio: 0.05
+    missing_space_ratio: 0.02
+    at_spacing_variation: 0.1
+  
+  realistic:
+    description: "Moderate noise - realistic STT"
+    digit_to_word_ratio: 0.5
+    filler_ratio: 0.3
+    lowercase_ratio: 1.0
+    spoken_card_ratio: 0.5
+    spoken_phone_ratio: 0.5
+    extra_space_ratio: 0.15
+    missing_space_ratio: 0.1
+    at_spacing_variation: 0.3
+  
+  noisy:
+    description: "High noise - challenging"
+    digit_to_word_ratio: 0.8
+    filler_ratio: 0.5
+    lowercase_ratio: 1.0
+    spoken_card_ratio: 0.8
+    spoken_phone_ratio: 0.8
+    extra_space_ratio: 0.25
+    missing_space_ratio: 0.2
+    at_spacing_variation: 0.5
+
+# ========== ACTIVE PRESET ==========
+# Options: "clean", "realistic", "noisy", "custom"
+# Use "custom" to override with stt_noise values above
+active_preset: "realistic"
+
+# ========== TRAINING CONFIGURATION ==========
+training:
+  model_name: "distilbert-base-uncased"
+  batch_size: 16
+  epochs: 3
+  learning_rate: 3e-5
+  max_length: 128
+
+# ========== EVALUATION TARGETS ==========
+targets:
+  pii_precision_min: 0.80
+  p95_latency_max_ms: 20
+

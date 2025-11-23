@@ -1,0 +1,33 @@
+{
+  "dataset": {
+    "train_size": 900,
+    "dev_size": 150,
+    "test_size": 150,
+    "template_strategy": "no_overlap"
+  },
+  "seeds": {
+    "train_seed": 13,
+    "dev_seed": 42,
+    "test_seed": 77
+  },
+  "stt_noise": {
+    "digit_to_word_ratio": 0.5,
+    "zero_to_oh_ratio": 0.1,
+    "filler_ratio": 0.3,
+    "lowercase_ratio": 1.0,
+    "email_semantic_link": 0.6,
+    "spoken_card_ratio": 0.5,
+    "spoken_phone_ratio": 0.5,
+    "spoken_date_ratio": 0.5,
+    "location_with_city_ratio": 0.4,
+    "extra_space_ratio": 0.15,
+    "missing_space_ratio": 0.1,
+    "at_spacing_variation": 0.3
+  },
+  "templates": {
+    "train_templates": 24,
+    "dev_test_templates": 20,
+    "total_templates": 44,
+    "strategy": "no_overlap"
+  }
+}

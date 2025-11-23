@@ -4,3 +4,4 @@ numpy
 tqdm
 seqeval
 faker
+pyyaml

@@ -4,12 +4,19 @@ pii_ner_assignment/.venv/
 # Training outputs
 pii_ner_assignment/out/
 pii_ner_assignment/out_*/
+pii_ner_assignment/quantized_runs/
+pii_ner_assignment/onnx_runs/
+pii_ner_assignment/distill_bert/
+pii_ner_assignment/bert_mini/
+pii_ner_assignment/bert_small/
 
 # Large model files (exceed GitHub 100MB limit)
 *.safetensors
 *.bin
+*.onnx
 **/model.safetensors
 **/pytorch_model.bin
+**/model.onnx
 
 # Unpacked archive artifacts
 __MACOSX/

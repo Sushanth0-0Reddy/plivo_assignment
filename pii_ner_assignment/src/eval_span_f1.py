@@ -121,9 +121,18 @@ def main():
     print(f"\nPII-only metrics: P={p:.3f} R={r:.3f} F1={f1:.3f}")
     p2, r2, f12 = compute_prf(non_tp, non_fp, non_fn)
     print(f"Non-PII metrics: P={p2:.3f} R={r2:.3f} F1={f12:.3f}")
+    
+    # Compute overall metrics (all entities combined - micro-averaged)
+    overall_tp = sum(tp.values())
+    overall_fp = sum(fp.values())
+    overall_fn = sum(fn.values())
+    overall_p, overall_r, overall_f1 = compute_prf(overall_tp, overall_fp, overall_fn)
+    print(f"Overall metrics (micro): P={overall_p:.3f} R={overall_r:.3f} F1={overall_f1:.3f}")
+    
     logging.info(
-        "Evaluation complete | Macro-F1 %.3f | PII precision %.3f | Non-PII precision %.3f",
+        "Evaluation complete | Macro-F1 %.3f | Overall F1 %.3f | PII precision %.3f | Non-PII precision %.3f",
         macro_f1,
+        overall_f1,
         p,
         p2,
     )
@@ -131,6 +140,9 @@ def main():
     if args.metrics_out:
         metrics = {
             "macro_f1": macro_f1,
+            "overall_precision": overall_p,
+            "overall_recall": overall_r,
+            "overall_f1": overall_f1,
             "per_entity": per_entity_metrics,
             "pii": {"precision": p, "recall": r, "f1": f1},
             "non_pii": {"precision": p2, "recall": r2, "f1": f12},

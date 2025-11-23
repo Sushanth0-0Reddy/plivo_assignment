@@ -1,0 +1,155 @@
+# Configuration for PII NER Dataset Generation
+# Controls dataset size, noise levels, and template distribution
+
+# ========== DATASET SIZE ==========
+# Assignment constraints: train 500-1000, dev 100-200
+dataset:
+  train_size: 900
+  dev_size: 150
+  test_size: 150
+  output_dir: "data"
+
+# ========== RANDOM SEEDS ==========
+# Different seeds for train/dev/test ensure diversity
+seeds:
+  train_seed: 13
+  dev_seed: 42
+  test_seed: 77
+
+# ========== STT NOISE SIMULATION ==========
+# Control how much "noise" is added to simulate real Speech-to-Text transcripts
+stt_noise:
+  # Digit-to-word conversion (0.0 = all digits, 1.0 = all words)
+  # Example: "123" → "one two three" (higher = more spoken digits)
+  digit_to_word_ratio: 0.5
+  
+  # "Zero" vs "oh" pronunciation (when digits are spoken)
+  # Example: "0" → "oh" instead of "zero"
+  zero_to_oh_ratio: 0.1
+  
+  # Filler words insertion (0.0 = none, 1.0 = always)
+  # Adds: "uh", "hmm", "like", "you know", "basically", "so"
+  filler_ratio: 0.3
+  
+  # Lowercase entity names (0.0 = proper case, 1.0 = all lowercase)
+  # STT often fails to capitalize proper nouns
+  lowercase_ratio: 1.0
+  
+  # Email addresses match person names (semantic consistency)
+  # Example: "John Smith" → "john.smith@gmail.com" (vs random email)
+  email_semantic_link: 0.6
+  
+  # Credit card digits spoken vs numeric
+  # Example: "1234" → "one two three four" vs "1 2 3 4"
+  spoken_card_ratio: 0.5
+  
+  # Phone number digits spoken vs numeric
+  # Example: "555-1234" → "five five five one two three four"
+  spoken_phone_ratio: 0.5
+  
+  # Date format: spoken vs numeric
+  # Example: "01 May 2024" vs "01 05 2024"
+  spoken_date_ratio: 0.5
+  
+  # Location names include city
+  # Example: "central mall atlanta" vs "central mall"
+  location_with_city_ratio: 0.4
+  
+  # --- STT SPACING ERRORS ---
+  # Extra spaces inserted between words (STT transcription errors)
+  # Example: "john smith" → "john  smith" (double space)
+  extra_space_ratio: 0.15
+  
+  # Missing spaces between words (STT word boundary errors)
+  # Example: "john smith" → "johnsmith"
+  missing_space_ratio: 0.1
+  
+  # Variable spacing around "at" in emails (inconsistent STT output)
+  # Example: "john at gmail" vs "john  at  gmail" vs "john at gmail"
+  at_spacing_variation: 0.3
+
+# ========== TEMPLATE DISTRIBUTION ==========
+# We have 44 total templates split between train and dev/test
+# This prevents the model from memorizing template patterns
+templates:
+  total_templates: 44
+  train_templates: 24  # 55% of templates for training
+  dev_test_templates: 20  # 45% of templates for dev/test (unseen patterns)
+  
+  # Template categories (informational)
+  categories:
+    - "Credit card scenarios"
+    - "Phone number inquiries"
+    - "Email communications"
+    - "Name verification"
+    - "Location/city references"
+    - "Multi-entity conversations"
+    - "Duplicate entity types"
+    - "Question-answer patterns"
+
+# ========== NOISE PRESETS ==========
+# Quick presets for different noise levels
+presets:
+  clean:
+    description: "Minimal noise - easier for model"
+    digit_to_word_ratio: 0.2
+    filler_ratio: 0.1
+    lowercase_ratio: 0.5
+    spoken_card_ratio: 0.2
+    spoken_phone_ratio: 0.2
+    extra_space_ratio: 0.05
+    missing_space_ratio: 0.02
+    at_spacing_variation: 0.1
+  
+  realistic:
+    description: "Moderate noise - realistic STT"
+    digit_to_word_ratio: 0.5
+    filler_ratio: 0.3
+    lowercase_ratio: 1.0
+    spoken_card_ratio: 0.5
+    spoken_phone_ratio: 0.5
+    extra_space_ratio: 0.15
+    missing_space_ratio: 0.1
+    at_spacing_variation: 0.3
+  
+  noisy:
+    description: "High noise - challenging"
+    digit_to_word_ratio: 0.8
+    filler_ratio: 0.5
+    lowercase_ratio: 1.0
+    spoken_card_ratio: 0.8
+    spoken_phone_ratio: 0.8
+    extra_space_ratio: 0.25
+    missing_space_ratio: 0.2
+    at_spacing_variation: 0.5
+
+# ========== ACTIVE PRESET ==========
+# Change this to switch between presets quickly
+# Options: "clean", "realistic", "noisy", "custom"
+active_preset: "realistic"
+
+# ========== TRAINING CONFIGURATION ==========
+# Model training hyperparameters
+training:
+  model_name: "distilbert-base-uncased"
+  batch_size: 16
+  epochs: 3
+  learning_rate: 3e-5
+  max_length: 128
+  device: "auto"  # "cuda", "cpu", or "auto"
+  
+  # Checkpointing
+  save_checkpoints_per_epoch: true
+  save_best_model: true
+  best_model_metric: "pii_f1"  # "pii_f1", "overall_f1", "pii_precision"
+
+# ========== EVALUATION TARGETS ==========
+# Assignment goals
+targets:
+  pii_precision_min: 0.80  # Must achieve >= 0.80
+  p95_latency_max_ms: 20   # Must be <= 20ms on CPU
+  
+  # Stretch goals
+  pii_f1_target: 0.75
+  overall_f1_target: 0.70
+
