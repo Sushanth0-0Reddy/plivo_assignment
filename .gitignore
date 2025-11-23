@@ -1,0 +1,23 @@
+# Virtual environments
+pii_ner_assignment/.venv/
+
+# Training outputs
+pii_ner_assignment/out/
+pii_ner_assignment/out_*/
+
+# Large model files (exceed GitHub 100MB limit)
+*.safetensors
+*.bin
+**/model.safetensors
+**/pytorch_model.bin
+
+# Unpacked archive artifacts
+__MACOSX/
+pii_ner_assignment 2.zip
+
+# External reference repos
+presidio-research/
+
+# Miscellaneous
+*.zip
+
