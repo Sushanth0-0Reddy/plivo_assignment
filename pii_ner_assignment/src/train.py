@@ -218,6 +218,23 @@ def main():
                      epoch + 1, avg_loss, dev_metrics["overall_f1"],
                      dev_metrics["pii_precision"], dev_metrics["pii_recall"], dev_metrics["pii_f1"])
         
+        # Save checkpoint for this epoch
+        epoch_dir = Path(args.out_dir) / f"checkpoint_epoch{epoch + 1}"
+        epoch_dir.mkdir(parents=True, exist_ok=True)
+        model.save_pretrained(epoch_dir)
+        tokenizer.save_pretrained(epoch_dir)
+        
+        # Save epoch metrics to separate file
+        epoch_metrics_file = epoch_dir / "metrics.json"
+        with open(epoch_metrics_file, "w") as f:
+            json.dump({
+                "epoch": epoch + 1,
+                "avg_loss": avg_loss,
+                "dev_metrics": dev_metrics,
+            }, f, indent=2)
+        
+        logging.info("✓ Checkpoint saved to %s", epoch_dir)
+        
         # Save best model based on PII F1
         current_pii_f1 = dev_metrics["pii_f1"]
         if current_pii_f1 > best_pii_f1:
@@ -227,7 +244,7 @@ def main():
             best_model_dir.mkdir(parents=True, exist_ok=True)
             model.save_pretrained(best_model_dir)
             tokenizer.save_pretrained(best_model_dir)
-            logging.info("✓ New best model saved (PII F1: %.3f) to %s", best_pii_f1, best_model_dir)
+            logging.info("✓ New best model (PII F1: %.3f) also saved to %s", best_pii_f1, best_model_dir)
         
         log_event(
             log_file,
@@ -239,6 +256,7 @@ def main():
                 "model_name": args.model_name,
                 "dev_metrics": dev_metrics,
                 "is_best": current_pii_f1 == best_pii_f1,
+                "checkpoint_dir": str(epoch_dir),
             },
         )
 

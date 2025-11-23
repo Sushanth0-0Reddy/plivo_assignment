@@ -261,6 +261,73 @@ def template_city_location(fake: Faker):
     return builder.text(), builder.entities
 
 
+def template_phone_only(fake: Faker):
+    builder = UtteranceBuilder()
+    phone = stt_phone(fake)
+    builder.add("contact number is")
+    builder.add(phone, "PHONE")
+    return builder.text(), builder.entities
+
+
+def template_date_location(fake: Faker):
+    builder = UtteranceBuilder()
+    date = stt_date(fake)
+    location = stt_location(fake)
+    builder.add("scheduled for")
+    builder.add(date, "DATE")
+    builder.add("at")
+    builder.add(location, "LOCATION")
+    return builder.text(), builder.entities
+
+
+def template_card_only(fake: Faker):
+    builder = UtteranceBuilder()
+    card = stt_credit_card(fake)
+    builder.add("card ending in")
+    builder.add(card, "CREDIT_CARD")
+    return builder.text(), builder.entities
+
+
+def template_email_phone(fake: Faker):
+    builder = UtteranceBuilder()
+    name = stt_name(fake)
+    email = stt_email(name, fake)
+    phone = stt_phone(fake)
+    builder.add("contact")
+    builder.add(email, "EMAIL")
+    builder.add("phone")
+    builder.add(phone, "PHONE")
+    return builder.text(), builder.entities
+
+
+def template_name_only(fake: Faker):
+    builder = UtteranceBuilder()
+    name = stt_name(fake)
+    builder.add("customer name")
+    builder.add(name, "PERSON_NAME")
+    return builder.text(), builder.entities
+
+
+def template_city_date(fake: Faker):
+    builder = UtteranceBuilder()
+    city = stt_city(fake)
+    date = stt_date(fake)
+    builder.add("arriving in")
+    builder.add(city, "CITY")
+    maybe_add_filler(builder)
+    builder.add("on")
+    builder.add(date, "DATE")
+    return builder.text(), builder.entities
+
+
+def template_location_only(fake: Faker):
+    builder = UtteranceBuilder()
+    location = stt_location(fake)
+    builder.add("venue is")
+    builder.add(location, "LOCATION")
+    return builder.text(), builder.entities
+
+
 TEMPLATES: List[TemplateFn] = [
     template_card_email_name,
     template_phone_city_date,
@@ -269,6 +336,13 @@ TEMPLATES: List[TemplateFn] = [
     template_card_phone,
     template_name_email_phone,
     template_city_location,
+    template_phone_only,
+    template_date_location,
+    template_card_only,
+    template_email_phone,
+    template_name_only,
+    template_city_date,
+    template_location_only,
 ]
 
 
@@ -283,21 +357,25 @@ class DatasetConfig:
     test_seed: int = 84
 
 
-def generate_samples(fake: Faker, size: int) -> List[Tuple[str, List[dict]]]:
+def generate_samples(fake: Faker, size: int, templates: List[TemplateFn] = None) -> List[Tuple[str, List[dict]]]:
+    """Generate samples using specified templates."""
+    if templates is None:
+        templates = TEMPLATES
     samples = []
     for _ in range(size):
-        template = random.choice(TEMPLATES)
+        template = random.choice(templates)
         samples.append(template(fake))
     return samples
 
 
-def generate_split(size: int, seed: int, prefix: str, include_entities: bool = True):
+def generate_split(size: int, seed: int, prefix: str, templates: List[TemplateFn] = None, include_entities: bool = True):
+    """Generate a split using specific templates to prevent memorization."""
     random.seed(seed)
     fake = Faker()
     fake.seed_instance(seed)
 
     records = []
-    for idx, (text, entities) in enumerate(generate_samples(fake, size)):
+    for idx, (text, entities) in enumerate(generate_samples(fake, size, templates)):
         record = {"id": f"{prefix}_{idx:04d}", "text": text}
         if include_entities:
             record["entities"] = entities
@@ -313,9 +391,17 @@ def write_jsonl(path: Path, rows: List[dict]):
 
 
 def build_dataset(cfg: DatasetConfig):
-    train_records = generate_split(cfg.train_size, cfg.train_seed, "utt_train", include_entities=True)
-    dev_records = generate_split(cfg.dev_size, cfg.dev_seed, "utt_dev", include_entities=True)
-    test_records = generate_split(cfg.test_size, cfg.test_seed, "utt_test", include_entities=False)
+    # Split templates: first 10 for train, remaining for dev/test
+    # This prevents the model from memorizing template patterns
+    num_train_templates = 10
+    train_templates = TEMPLATES[:num_train_templates]
+    dev_test_templates = TEMPLATES[num_train_templates:]
+    
+    print(f"Using {len(train_templates)} templates for training, {len(dev_test_templates)} different templates for dev/test")
+    
+    train_records = generate_split(cfg.train_size, cfg.train_seed, "utt_train", train_templates, include_entities=True)
+    dev_records = generate_split(cfg.dev_size, cfg.dev_seed, "utt_dev", dev_test_templates, include_entities=True)
+    test_records = generate_split(cfg.test_size, cfg.test_seed, "utt_test", dev_test_templates, include_entities=False)
 
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
     write_jsonl(cfg.output_dir / "train.jsonl", train_records)
