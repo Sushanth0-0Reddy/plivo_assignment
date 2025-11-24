@@ -1,276 +1,869 @@
-# PII NER Dataset Generation - Three Methods Comparison
+# PII NER Dataset Generation: Comprehensive Documentation
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Dataset Size Configuration](#dataset-size-configuration)
+3. [STT Noise Parameters](#stt-noise-parameters)
+4. [Dataset Generation Methods](#dataset-generation-methods)
+5. [Template Architecture](#template-architecture)
+6. [Noise Presets](#noise-presets)
+7. [Reproducibility](#reproducibility)
+
+---
 
 ## Overview
 
-We've generated **three datasets** using different strategies to test different aspects of the model:
+This project implements a synthetic data generation pipeline for PII Named Entity Recognition in Speech-to-Text transcripts. The generator simulates realistic STT errors and produces training, development, and test datasets with accurate character-level entity annotations.
 
-- **Baseline** - Basic templates, simple STT noise
-- **Presidio-Inspired (No Overlap)** - Tests **Natural Language Understanding + STT Generalization**
-- **Presidio-Inspired (Overlap)** - Tests **STT Generalization Only**
+### Key Features
+
+- Three configurable dataset generation strategies
+- 12 STT noise parameters to simulate real transcription errors
+- 44 diverse conversation templates inspired by Microsoft Presidio
+- Reproducible generation with seed control
+- Support for 7 entity types with PII classification
+
+### Entity Types
+
+The system recognizes seven entity types:
+
+**PII Entities:**
+- CREDIT_CARD
+- PHONE
+- EMAIL
+- PERSON_NAME
+- DATE
+
+**Non-PII Entities:**
+- CITY
+- LOCATION
 
 ---
 
-## Quick Comparison Table
+## Dataset Size Configuration
 
-| Aspect | Baseline | Presidio-Inspired (No Overlap) | Presidio-Inspired (Overlap) |
-|--------|----------|-------------------------------|----------------------------|
-| **Templates** | 7 simple | 44 diverse (24 train / 20 dev) | 44 diverse (all shared) |
-| **Template Strategy** | Random split | **Disjoint templates** | **Same templates** |
-| **STT Noise** | Basic (9 params) | Enhanced (12 params) | Enhanced (12 params) |
-| **Spacing Noise** | No | Yes | Yes |
-| **`at` Variations** | No | Yes | Yes |
-| **What It Tests** |Basic STT | **NLU + STT generalization** | **STT generalization only** |
+### Assignment Constraints
+
+The dataset size parameters follow the assignment requirements:
+
+```yaml
+dataset:
+  train_size: 900        # Range: 500-1000 samples
+  dev_size: 150          # Range: 100-200 samples
+  test_size: 150         # Flexible
+  output_dir: "data"
+```
+
+### Parameter Details
+
+**train_size**
+- Purpose: Number of training samples to generate
+- Default: 900
+- Range: 500-1000 per assignment constraints
+- Impact: More training samples improve model generalization but increase training time
+
+**dev_size**
+- Purpose: Number of development samples for validation
+- Default: 150
+- Range: 100-200 per assignment constraints
+- Impact: Used for hyperparameter tuning and early stopping
+
+**test_size**
+- Purpose: Number of test samples for final evaluation
+- Default: 150
+- Impact: Final model performance assessment without entity annotations
+
+**output_dir**
+- Purpose: Directory where generated JSONL files will be saved
+- Default: "data"
+- Outputs: train.jsonl, dev.jsonl, test.jsonl, generation_config.json
+
+### Random Seeds
+
+Different seeds ensure diversity across splits:
+
+```yaml
+seeds:
+  train_seed: 13
+  dev_seed: 42
+  test_seed: 77
+```
+
+Using different seeds prevents identical entity values across splits while maintaining template structure based on generation method.
+
 ---
 
-## Baseline (Basic Templates)
+## STT Noise Parameters
+
+The generator includes 12 configurable parameters that simulate real Speech-to-Text transcription errors and natural speech patterns.
+
+### Digit Handling Parameters
+
+#### digit_to_word_ratio
+- Type: Float (0.0 - 1.0)
+- Default: 0.5
+- Purpose: Controls probability of keeping digits numeric versus converting to words
+- Behavior:
+  - 0.0: All digits converted to words ("4321" becomes "four three two one")
+  - 1.0: All digits remain numeric ("4321" stays "4321")
+  - 0.5: 50% chance of either format
+- Example:
+  - Input: "4242 4242 4242 4242"
+  - Output (0.5): "four two four two 4242 4242 four two four two"
+- Use Case: STT systems inconsistently transcribe spoken numbers
+
+#### zero_to_oh_ratio
+- Type: Float (0.0 - 1.0)
+- Default: 0.1
+- Purpose: When digits are spoken, controls saying "oh" instead of "zero"
+- Behavior: Only applies when digit_to_word_ratio converts digits to words
+- Example:
+  - Input: "4200"
+  - Output (0.1): "four two oh oh" (10% chance per zero)
+  - Output (0.0): "four two zero zero"
+- Use Case: Natural speech often uses "oh" for zero in numbers
+
+### Conversational Noise Parameters
+
+#### filler_ratio
+- Type: Float (0.0 - 1.0)
+- Default: 0.3
+- Purpose: Probability of inserting conversational filler words
+- Filler Words: "uh", "hmm", "like", "you know", "basically", "so"
+- Example:
+  - Input: "my card is 4321"
+  - Output (0.3): "my card uh is 4321" or "like my card is 4321"
+- Use Case: Real speech contains disfluencies that STT captures
+
+### Capitalization Parameters
+
+#### lowercase_ratio
+- Type: Float (0.0 - 1.0)
+- Default: 1.0
+- Purpose: Probability of lowercasing entity names and text
+- Example:
+  - Input: "John Smith"
+  - Output (1.0): "john smith"
+  - Output (0.5): 50% "john smith", 50% "John Smith"
+- Use Case: STT systems often fail to preserve proper capitalization
+
+### Semantic Consistency Parameters
+
+#### email_semantic_link
+- Type: Float (0.0 - 1.0)
+- Default: 0.6
+- Purpose: Probability that email address semantically matches person name
+- Example:
+  - Name: "john smith"
+  - Output (0.6): "john.smith@gmail.com" (60% chance)
+  - Output (0.4): "randomuser123@mail.com" (40% chance)
+- Use Case: Real conversations often have semantic consistency between entities
+
+### Entity-Specific Noise Parameters
+
+#### spoken_card_ratio
+- Type: Float (0.0 - 1.0)
+- Default: 0.5
+- Purpose: Probability credit card numbers are fully spoken versus space-separated
+- Example:
+  - Input: "4321 8765 2109 4321"
+  - Output (1.0): "four three two one eight seven six five..."
+  - Output (0.0): "4 3 2 1 8 7 6 5..." (space-separated digits)
+- Use Case: Cards can be read naturally ("forty-three twenty-one") or digit-by-digit
+
+#### spoken_phone_ratio
+- Type: Float (0.0 - 1.0)
+- Default: 0.5
+- Purpose: Probability phone numbers are spoken versus numeric
+- Example:
+  - Input: "9876543210"
+  - Output (1.0): "nine eight seven six five four three two one zero"
+  - Output (0.0): "9 8 7 6 5 4 3 2 1 0"
+- Use Case: Phone numbers typically spoken digit-by-digit
+
+#### spoken_date_ratio
+- Type: Float (0.0 - 1.0)
+- Default: 0.5
+- Purpose: Probability dates are spoken versus numeric format
+- Example:
+  - Input: Date(2024, 5, 15)
+  - Output (1.0): "fifteen may two zero two four" or "15 may 2024"
+  - Output (0.0): "15 05 2024"
+- Use Case: Dates can be spoken naturally or read as numbers
+
+#### location_with_city_ratio
+- Type: Float (0.0 - 1.0)
+- Default: 0.4
+- Purpose: Probability location names include city context
+- Example:
+  - Output (0.4): "central mall atlanta" (40% chance)
+  - Output (0.6): "central mall" (60% chance)
+- Use Case: Locations are often mentioned with city for clarity
+
+### STT Spacing Error Parameters
+
+These parameters simulate transcription errors in word boundary detection.
+
+#### extra_space_ratio
+- Type: Float (0.0 - 1.0)
+- Default: 0.15
+- Purpose: Probability of inserting extra spaces between words
+- Example:
+  - Input: "john smith"
+  - Output (0.15): "john  smith" (double space)
+- Use Case: STT systems sometimes output inconsistent spacing
+
+#### missing_space_ratio
+- Type: Float (0.0 - 1.0)
+- Default: 0.1
+- Purpose: Probability of missing spaces between words
+- Example:
+  - Input: "john smith"
+  - Output (0.1): "johnsmith" (concatenated)
+- Use Case: STT fails to detect word boundaries
+
+#### at_spacing_variation
+- Type: Float (0.0 - 1.0)
+- Default: 0.3
+- Purpose: Variable spacing around "at" and "dot" in email addresses
+- Variations:
+  - " at " (standard)
+  - "  at  " (extra spaces)
+  - " at" (space before only)
+  - "at " (space after only)
+- Example:
+  - Input: "john@gmail.com"
+  - Output: "john  at  gmail dot com" (inconsistent spacing)
+- Use Case: STT produces inconsistent spacing for email separators
+
+---
+
+## Dataset Generation Methods
+
+The project implements three distinct generation strategies to test different model capabilities.
+
+### Method 1: Baseline
 
 **Configuration:** `data_baseline/`
 
-### Templates Used (7 Simple Templates)
+**Purpose:** Simple baseline with basic STT noise
 
-- **`template_card_email_name`**
-  - Pattern: `"my credit card number is {card} and email is {email} name on the card is {name}"`
-  - Entities: CREDIT_CARD, EMAIL, PERSON_NAME
+#### Characteristics
 
-- **`template_phone_city_date`**
-  - Pattern: `"call me on {phone} i am calling from {city} and i will travel on {date}"`
-  - Entities: PHONE, CITY, DATE
+- 7 simple conversation templates
+- Random split between train and development sets
+- 9 basic STT noise parameters (no spacing errors)
+- Possible template overlap between splits
 
-- **`template_email_only`**
-  - Pattern: `"email id is {email} person name {name}"`
-  - Entities: EMAIL, PERSON_NAME
+#### Templates Used
 
-- **`template_location_trip`**
-  - Pattern: `"meeting location will be {location} on {date}"`
-  - Entities: LOCATION, DATE
+1. template_card_email_name: Credit card + email + name
+2. template_phone_city_date: Phone + city + date
+3. template_email_only: Email + name
+4. template_location_trip: Location + date
+5. template_card_phone: Credit card + phone
+6. template_name_email_phone: Name + email + phone
+7. template_city_location: City + location
 
-- **`template_card_phone`**
-  - Pattern: `"card digits are {card} reach me at number {phone}"`
-  - Entities: CREDIT_CARD, PHONE
-
-- **`template_name_email_phone`**
-  - Pattern: `"this is {name} send note to {email} or ping {phone}"`
-  - Entities: PERSON_NAME, EMAIL, PHONE
-
-- **`template_city_location`**
-  - Pattern: `"currently staying in {city} near {location}"`
-  - Entities: CITY, LOCATION
-
-### STT Noise (9 Parameters)
+#### STT Noise Configuration
 
 ```json
 {
-  "digit_to_word_ratio": 0.5,       // Mix of "4" and "four"
-  "zero_to_oh_ratio": 0.1,          // "0" → "oh"
-  "filler_ratio": 0.3,              // Add "um", "uh"
-  "lowercase_ratio": 1.0,           // All lowercase
-  "email_semantic_link": 0.6,        // Email matches name
-  "spoken_card_ratio": 0.5,         // Spoken card numbers
-  "spoken_phone_ratio": 0.5,       // Spoken phone numbers
-  "spoken_date_ratio": 0.5,         // Spoken dates
-  "location_with_city_ratio": 0.4   // Location + city pairs
-  // Missing: extra_space, missing_space, at_spacing
+  "digit_to_word_ratio": 0.5,
+  "zero_to_oh_ratio": 0.1,
+  "filler_ratio": 0.3,
+  "lowercase_ratio": 1.0,
+  "email_semantic_link": 0.6,
+  "spoken_card_ratio": 0.5,
+  "spoken_phone_ratio": 0.5,
+  "spoken_date_ratio": 0.5,
+  "location_with_city_ratio": 0.4
 }
 ```
 
-### Sample Data
+Note: Missing spacing parameters (extra_space, missing_space, at_spacing_variation)
 
-```json
-{"text": "need to change billing date of my card four two three two 3 two 2 1 eight three 4 zero 6 2 9 0 four 2 nine"}
-{"text": "please have manager call me at 4 7 6 2 4 5 3 7 8 9"}
-{"text": "my credit card number is 4820 2764 0502 5079 and email is brucecassie at example dot com"}
+#### Example Output
+
 ```
+"my credit card number is four two four two 4242 4242 4242 and email is john dot smith at gmail dot com"
+```
+
+#### When to Use
+
+- Assignment submission (meets basic requirements)
+- Quick baseline for comparison
+- Testing basic PII recognition without complex generalization
 
 ---
 
-## Presidio-Inspired (No Template Overlap)
+### Method : No Template Overlap
 
 **Configuration:** `data_method1_no_overlap/`
 
-### Templates Used (44 Total: 24 Train + 20 Dev)
+**Purpose:** Test Natural Language Understanding and STT generalization
 
-#### Train Templates (24):
-**Original (7):**
-- `template_card_email_name`, `template_phone_city_date`, `template_email_only`, 
-- `template_location_trip`, `template_card_phone`, `template_name_email_phone`, 
-- `template_city_location`
+#### Characteristics
 
-**Presidio-Inspired (17):**
-- `presidio_01`: `"my credit card {card} has been lost can you block it"`
-- `presidio_02`: `"need to change billing date of my card {card}"`
-- `presidio_03`: `"i have lost my card {card} my name is {name}"`
-- `presidio_04`: `"didnt get message on my registered {phone}"`
-- `presidio_05`: `"send last billed amount for card {card} to {email}"`
-- `presidio_06`: `"please have manager call me at {phone}"`
-- `presidio_07`: `"whats your email {email}"`
-- `presidio_08`: `"contact {name} at {email} phone {phone}"`
-- `presidio_09`: `"customer name {name} date of birth {date}"`
-- `presidio_10`: `"restaurant is at {location} east {city}"`
-- `presidio_11`: `"how can we reach you call {phone}"`
-- `presidio_12`: `"update my email from {email} to {email}"`
-- `presidio_13`: `"my name is {name} {name}"` (duplicate entities)
-- `presidio_14`: `"call {phone} or {phone}"` (multiple same type)
-- `presidio_15`: `"hi my card {card} was declined call {phone}"`
-- `presidio_16`: `"change my email from {email} to {email}"`
-- `presidio_17`: `"i moved to {city} please update {email}"`
+- 44 diverse templates total
+- 24 templates exclusively for training (55%)
+- 20 completely different templates for dev/test (45%)
+- Zero overlap between train and evaluation templates
+- Full 12-parameter STT noise simulation
 
-#### Dev/Test Templates (20 - Completely Different):
-**Original (7):**
-- `template_phone_only`, `template_date_location`, `template_card_only`, 
-- `template_email_phone`, `template_name_only`, `template_city_date`, 
-- `template_location_only`
+#### Template Strategy
 
-**Presidio-Inspired (13):**
-- `presidio_18` through `presidio_30` (different sentence structures)
+```
+Train Templates (24):
+  - Original 7 templates
+  - Presidio-inspired templates 01-17
 
-### STT Noise (12 Parameters - Enhanced)
+Dev/Test Templates (20):
+  - 7 new original templates
+  - Presidio-inspired templates 18-30
+
+Overlap: NONE
+```
+
+#### STT Noise Configuration
 
 ```json
 {
-  // All 9 baseline parameters PLUS:
-  "extra_space_ratio": 0.15,        // "at example" → "at  example"
-  "missing_space_ratio": 0.1,      // "at example" → "atexample"
-  "at_spacing_variation": 0.3      // "at" → " at " / "at " / " at"
+  "digit_to_word_ratio": 0.5,
+  "zero_to_oh_ratio": 0.1,
+  "filler_ratio": 0.3,
+  "lowercase_ratio": 1.0,
+  "email_semantic_link": 0.6,
+  "spoken_card_ratio": 0.5,
+  "spoken_phone_ratio": 0.5,
+  "spoken_date_ratio": 0.5,
+  "location_with_city_ratio": 0.4,
+  "extra_space_ratio": 0.15,
+  "missing_space_ratio": 0.1,
+  "at_spacing_variation": 0.3
 }
 ```
 
-### Template Strategy
+#### Example Training Sample
 
-```python
-# Train uses first 24 templates
-TRAIN_TEMPLATES = [template_card_email_name, ..., presidio_17]
-
-# Dev/Test uses DIFFERENT 20 templates
-DEV_TEST_TEMPLATES = [template_phone_only, ..., presidio_30]
-
-# Zero overlap! Forces true generalization
+```
+"need to change billing date of my card four two three two 3 two 2 1 eight three 4 zero 6 2 9 0 four 2 nine"
 ```
 
-### Sample Data
+#### Example Dev Sample (Different Template)
 
-**Train:**
-```json
-{"text": "need to change billing date of my card four two three two 3..."}
-{"text": "please have manager call me at 4 7 6 2 4 5 3 7 8 9"}
+```
+"contact donaldgarcia  at  example dot net phone 9 6 oh 0 4 5 3 7 8 9"
 ```
 
-**Dev (Different Templates!):**
-```json
-{"text": "contact donaldgarcia at example dot net phone 9 6 oh 0..."}
-{"text": "customer name jerry ramirez date of birth january 15 1985"}
-```
+Note: The dev sample uses a completely different sentence structure not seen during training.
 
-### What It Tests
+#### What It Tests
 
-- **Natural Language Understanding**: Can model learn entity patterns across different sentence structures?
-- **STT Generalization**: Can model handle noisy STT patterns it hasn't seen in training?
+1. Natural Language Understanding: Can the model recognize PII patterns across different sentence structures?
+2. STT Generalization: Can the model handle diverse noise patterns it hasn't seen?
+3. True Generalization: Does the model learn entity patterns versus memorizing positions?
 
-**Purpose:** Tests if model truly learned PII patterns vs memorizing sentence structures
+#### When to Use
+
+- Production deployment preparation
+- Research on model generalization
+- Testing robustness to novel phrasing
+- Realistic performance assessment
 
 ---
 
-## Presidio-Inspired (Template Overlap)
+### Method : Template Overlap Allowed
 
 **Configuration:** `data_method2_overlap/`
 
-### Templates Used (44 Total - All Shared)
+**Purpose:** Test PII recognition accuracy without confounding generalization
 
-**Same 44 templates as Presidio-Inspired (No Overlap)**, but:
-- **Train uses ALL 44 templates**
-- **Dev/Test uses SAME 44 templates**
-- Only entity **values** differ, not sentence structures
+#### Characteristics
 
-### STT Noise (12 Parameters - Same as Presidio-Inspired No Overlap)
+- Same 44 templates used in all splits
+- Train, dev, and test use identical sentence structures
+- Only entity values differ across splits (controlled by seeds)
+- Full 12-parameter STT noise simulation
 
-```json
-{
-  // Same 12 parameters as Presidio-Inspired (No Overlap)
-  "digit_to_word_ratio": 0.5,
-  "extra_space_ratio": 0.15,
-  "missing_space_ratio": 0.1,
-  "at_spacing_variation": 0.3,
-  // ... etc
-}
+#### Template Strategy
+
+```
+Train Templates: ALL 44 templates
+Dev Templates: SAME 44 templates
+Test Templates: SAME 44 templates
+
+Overlap: COMPLETE
 ```
 
-### Template Strategy
+Different seeds ensure different entity values:
+- Train: "my name is John Smith"
+- Dev: "my name is Alice Johnson" (same structure, different name)
 
-```python
-# Both train and dev use ALL templates
-TRAIN_TEMPLATES = ALL_44_TEMPLATES
-DEV_TEST_TEMPLATES = ALL_44_TEMPLATES  # Same!
+#### STT Noise Configuration
 
-# Templates overlap! Model can memorize positions
+Identical to Method 2 (all 12 parameters)
+
+#### Example Training Sample
+
+```
+"whats your email denisewade at example dot org"
 ```
 
-### Sample Data
+#### Example Dev Sample (Same Template)
 
-**Train:**
-```json
-{"text": "whats your email denisewade at example dot org"}
-{"text": "restaurant is at river view park east chad in lake kenneth"}
+```
+"whats your email lindsay78  at  example dot org"
 ```
 
-**Dev (Same Templates, Different Entities):**
-```json
-{"text": "whats your email lindsay78 at example dot org"}  // Same structure!
-{"text": "restaurant is at central mall west austin in dallas"}  // Same structure!
-```
+Note: Same template structure, different entity value, different spacing pattern.
 
-### What It Tests
+#### What It Tests
 
-- **STT Generalization Only**: Can model handle noisy STT patterns (spacing, "at" variations)?
-- **NOT testing NLU**: Model memorizes template positions, not general patterns
+1. PII Recognition: Can the model identify PII entities in familiar contexts?
+2. STT Noise Handling: Can the model handle spacing variations and noise?
+3. Upper Bound Performance: What's the best achievable accuracy without generalization challenges?
 
-**Purpose:** Tests STT noise handling when sentence structures are familiar
+#### When to Use
+
+- Establishing performance upper bounds
+- Debugging entity recognition issues
+- Testing STT noise robustness in isolation
+- Understanding overfitting potential
 
 ---
 
-## Visual Comparison
+## Template Architecture
 
-### Template Distribution
+### Template Categories
+
+The 44 templates are inspired by Microsoft Presidio and cover diverse conversation scenarios:
+
+1. Credit card scenarios (lost cards, billing updates, verification)
+2. Phone number inquiries (callbacks, contact updates, verification)
+3. Email communications (updates, contact info, account changes)
+4. Name verification (customer service, identification)
+5. Location references (meetings, addresses, travel)
+6. Multi-entity conversations (combined PII elements)
+7. Duplicate entities (multiple phones, email updates)
+8. Question-answer patterns (natural dialogue)
+
+### Original Templates (14 total)
+
+#### Used in All Methods
+
+1. template_card_email_name
+2. template_phone_city_date
+3. template_email_only
+4. template_location_trip
+5. template_card_phone
+6. template_name_email_phone
+7. template_city_location
+
+#### Additional for Method 2 & 3
+
+8. template_phone_only
+9. template_date_location
+10. template_card_only
+11. template_email_phone
+12. template_name_only
+13. template_city_date
+14. template_location_only
+
+### Presidio-Inspired Templates (30 total)
+
+Adapted from Microsoft Presidio PII recognizer test cases:
+
+#### Training Templates (presidio_01 to presidio_17)
+
+Examples:
+- presidio_01: "my credit card {card} has been lost can you block it"
+- presidio_02: "need to change billing date of my card {card}"
+- presidio_03: "i have lost my card {card} my name is {name}"
+- presidio_07: "please have manager call me at {phone}"
+- presidio_10: "whats your email {email}"
+- presidio_12: "how can we reach you call {phone}"
+
+#### Dev/Test Templates (presidio_18 to presidio_30)
+
+Examples:
+- presidio_18: "i would like to stop receiving messages to {phone}"
+- presidio_22: "hi my card {card} was declined call {phone}"
+- presidio_23: "change my email from {email} to {email}" (duplicate entities)
+- presidio_24: "call {phone} or {phone}" (multiple same type)
+- presidio_28: "restaurant is at {location} in {city}"
+
+### Template Distribution Visualization
 
 ```
 BASELINE:
-Train: [T1, T2, T3, T4, T5, T6, T7] ← Random selection
-Dev:   [T1, T2, T3, T4, T5, T6, T7] ← Random selection
-       Templates overlap (but only 7 simple ones)
+├── Train: [T1-T7] randomly selected
+└── Dev:   [T1-T7] randomly selected
+    └── Overlap: Possible
 
-PRESIDIO-INSPIRED (NO OVERLAP):
-Train: [T1, T2, ... T24] ← First 24 only
-Dev:   [T25, T26, ... T44] ← Last 20 only
-       Zero overlap! Forces true generalization
+METHOD 1 (NO OVERLAP):
+├── Train: [T1-T7, P01-P17] = 24 templates
+└── Dev:   [T8-T14, P18-P30] = 20 templates
+    └── Overlap: ZERO
 
-PRESIDIO-INSPIRED (OVERLAP):
-Train: [T1, T2, ... T44] ← All 44
-Dev:   [T1, T2, ... T44] ← Same 44
-       Full overlap! Model can memorize positions
-```
-
-### STT Noise Evolution
-
-```
-BASELINE:                    [████████████████░░░░]  9/12 noise types (basic)
-PRESIDIO-INSPIRED (BOTH):    [████████████████████]  12/12 noise types (full)
-                             Added: spacing errors + at-variations
+METHOD 2 (OVERLAP):
+├── Train: [T1-T14, P01-P30] = 44 templates
+└── Dev:   [T1-T14, P01-P30] = 44 templates
+    └── Overlap: COMPLETE
 ```
 
 ---
 
-## Which Method Tests What?
+## Noise Presets
 
-| Capability | Baseline | Presidio-Inspired (No Overlap) | Presidio-Inspired (Overlap) |
-|------------|----------|-------------------------------|----------------------------|
-| **Basic PII Recognition** | Yes | Yes | Yes |
-| **STT Noise Handling** | Basic | Full | Full |
-| **NLU Generalization** | Limited | Strong | None |
-| **Template Memorization** | Possible | Prevented | Occurs |
-| **Production Readiness** | Good | Best | Overfits |
+The system provides three pre-configured noise presets for quick experimentation.
+
+### Clean Preset
+
+**Purpose:** Minimal noise for easier model training
+
+```yaml
+presets:
+  clean:
+    description: "Minimal noise - easier for model"
+    digit_to_word_ratio: 0.2      # 20% spoken digits
+    filler_ratio: 0.1              # 10% fillers
+    lowercase_ratio: 0.5           # 50% lowercase
+    spoken_card_ratio: 0.2
+    spoken_phone_ratio: 0.2
+    extra_space_ratio: 0.05        # 5% spacing errors
+    missing_space_ratio: 0.02
+    at_spacing_variation: 0.1
+```
+
+**Example Output:**
+```
+"my card 4232 3221 8340 6290 429"
+```
+
+**When to Use:**
+- Initial model development
+- Debugging entity detection
+- Baseline performance testing
+
+### Realistic Preset (Default)
+
+**Purpose:** Moderate noise simulating real STT transcripts
+
+```yaml
+presets:
+  realistic:
+    description: "Moderate noise - realistic STT"
+    digit_to_word_ratio: 0.5      # 50% spoken digits
+    filler_ratio: 0.3              # 30% fillers
+    lowercase_ratio: 1.0           # All lowercase
+    spoken_card_ratio: 0.5
+    spoken_phone_ratio: 0.5
+    extra_space_ratio: 0.15        # 15% spacing errors
+    missing_space_ratio: 0.1
+    at_spacing_variation: 0.3
+```
+
+**Example Output:**
+```
+"my card four two three two 3 two 2 1 eight three 4 zero 6 2 9 0 four 2 nine"
+```
+
+**When to Use:**
+- Production model training
+- Assignment submission
+- Performance benchmarking
+
+### Noisy Preset
+
+**Purpose:** High noise for challenging model training
+
+```yaml
+presets:
+  noisy:
+    description: "High noise - challenging"
+    digit_to_word_ratio: 0.8      # 80% spoken digits
+    filler_ratio: 0.5              # 50% fillers
+    lowercase_ratio: 1.0           # All lowercase
+    spoken_card_ratio: 0.8
+    spoken_phone_ratio: 0.8
+    extra_space_ratio: 0.25        # 25% spacing errors
+    missing_space_ratio: 0.2
+    at_spacing_variation: 0.5
+```
+
+**Example Output:**
+```
+"uh my card like four two three two three hmm two two one eight three four  zero six two nine zero four two nine"
+```
+---
+
+## Reproducibility
+
+### Generation Configuration Logging
+
+Each dataset generation saves a complete configuration file for reproducibility:
+
+**File:** `{output_dir}/generation_config.json`
+
+**Contents:**
+
+```json
+{
+  "dataset": {
+    "train_size": 900,
+    "dev_size": 150,
+    "test_size": 150,
+    "template_strategy": "no_overlap"
+  },
+  "seeds": {
+    "train_seed": 13,
+    "dev_seed": 42,
+    "test_seed": 77
+  },
+  "stt_noise": {
+    "digit_to_word_ratio": 0.5,
+    "zero_to_oh_ratio": 0.1,
+    "filler_ratio": 0.3,
+    "lowercase_ratio": 1.0,
+    "email_semantic_link": 0.6,
+    "spoken_card_ratio": 0.5,
+    "spoken_phone_ratio": 0.5,
+    "spoken_date_ratio": 0.5,
+    "location_with_city_ratio": 0.4,
+    "extra_space_ratio": 0.15,
+    "missing_space_ratio": 0.1,
+    "at_spacing_variation": 0.3
+  },
+  "templates": {
+    "train_templates": 24,
+    "dev_test_templates": 20,
+    "total_templates": 44,
+    "strategy": "no_overlap"
+  }
+}
+```
+
+### Usage Commands
+
+#### Generate with Default Configuration
+
+```bash
+python scripts/generate_data.py
+```
+
+#### Generate with Specific Preset
+
+```bash
+python scripts/generate_data.py --preset clean
+python scripts/generate_data.py --preset realistic
+python scripts/generate_data.py --preset noisy
+```
+
+#### Generate with Custom Parameters
+
+```bash
+python scripts/generate_data.py \
+  --train_size 1000 \
+  --dev_size 200 \
+  --preset noisy \
+  --out_dir data_custom
+```
+
+#### Use Specific Configuration File
+
+```bash
+python scripts/generate_data.py --config config/method1_no_template_overlap.yaml
+python scripts/generate_data.py --config config/method2_template_overlap.yaml
+```
+
+### Seed Control
+
+Different seeds ensure dataset diversity:
+
+- **train_seed:** Controls training data entity values and template selection
+- **dev_seed:** Controls development data entity values and template selection
+- **test_seed:** Controls test data entity values and template selection
+
+Using different seeds prevents data leakage while maintaining consistent noise patterns.
 
 ---
 
-## Key Takeaways
+## Summary Comparison
 
-- **Baseline**: Simple, realistic, good for assignment submission
-- **Presidio-Inspired (No Overlap)**: Tests **both NLU and STT generalization** - best for research
-- **Presidio-Inspired (Overlap)**: Tests **only STT generalization** - shows upper bound but overfits
+### Method Selection Guide
+
+| Aspect | Baseline | Method 1 (No Overlap) | Method 2 (Overlap) |
+|--------|----------|----------------------|-------------------|
+| Templates | 7 simple | 44 (24 train / 20 dev) | 44 (all shared) |
+| STT Noise | 9 parameters | 12 parameters | 12 parameters |
+| Template Overlap | Possible | None | Complete |
+| Tests NLU | Limited | Strong | None |
+| Tests STT Noise | Basic | Full | Full |
+| Production Ready | Good | Best | Overfits |
+| Training Difficulty | Easy | Hard | Medium |
+| Assignment Use | Recommended | Research | Upper Bound |
+
+### Parameter Complexity
+
+```
+BASELINE:
+[████████████████░░░░] 9/12 noise parameters
+
+METHOD 1 & 2:
+[████████████████████] 12/12 noise parameters
+```
+
+### Dataset Statistics
+
+All methods generate:
+- Training: 900 samples
+- Development: 150 samples
+- Test: 150 samples
+
+Total: 1,200 labeled utterances per method
+
+---
+
+## Future Work: Scaling with Large-Scale PII Datasets
+
+### Approach with More Resources and Time
+
+Given additional resources and time, the optimal approach would be to combine large-scale general PII detection datasets with our specialized STT noise simulation methodology.
+
+### Proposed Method
+
+#### 1. Use Large-Scale Base Dataset
+
+Instead of generating from scratch with 44 templates, leverage existing large-scale PII datasets such as:
+
+**AI4Privacy PII-Masking-200k** ([https://huggingface.co/datasets/ai4privacy/pii-masking-200k](https://huggingface.co/datasets/ai4privacy/pii-masking-200k))
+- 209,000 examples with 649k PII tokens
+- 54 PII classes (far more diverse than our 7 classes)
+- 229 discussion subjects across business, education, psychology, and legal domains
+- 4 languages: English, French, German, Italian
+- Human-in-the-loop validated quality
+- Multiple interaction styles (casual, formal, email, etc.)
+
+**Microsoft Presidio Research** ([https://github.com/microsoft/presidio-research](https://github.com/microsoft/presidio-research))
+- Academic-quality PII recognition research
+- Benchmark datasets and evaluation frameworks
+- Production-tested entity patterns
+
+#### 2. Apply STT Noise Simulation Pipeline
+
+Take the clean text from these datasets and apply our 12-parameter STT noise simulation:
+
+```python
+# Pseudocode
+for example in ai4privacy_dataset:
+    clean_text = example['source_text']
+    pii_labels = example['privacy_mask']
+    
+    # Apply our STT noise transformation
+    noisy_text = apply_stt_noise(
+        text=clean_text,
+        noise_config=STTNoiseConfig(
+            digit_to_word_ratio=0.5,
+            filler_ratio=0.3,
+            extra_space_ratio=0.15,
+            missing_space_ratio=0.1,
+            at_spacing_variation=0.3,
+            # ... all 12 parameters
+        )
+    )
+    
+    # Adjust entity spans for noise-induced position shifts
+    adjusted_labels = adjust_entity_positions(pii_labels, clean_text, noisy_text)
+```
+
+#### 3. Benefits of This Approach
+
+**Scale:**
+- 200,000+ training examples vs our 900
+- 100x more data for robust model training
+
+**Diversity:**
+- 54 PII classes vs our 7 entity types
+- Covers IBAN, IP addresses, SSN, passport numbers, medical records
+- More realistic conversation patterns from human validation
+
+**Domain Coverage:**
+- Business contracts, legal documents, medical records
+- Educational transcripts, customer support, emails
+- Multiple languages and cultural contexts
+
+**STT Specialization:**
+- Our unique 12-parameter noise simulation adds STT-specific challenges
+- Preserves the quality labels from AI4Privacy
+- Tests model robustness to speech recognition errors
+
+**Pre-trained Models:**
+- Leverage existing models like [SoelMgd/bert-pii-detection](https://huggingface.co/SoelMgd/bert-pii-detection)
+- Fine-tune on STT-noised version for domain adaptation
+- Transfer learning from 66.4M parameter BERT models
+
+#### 4. Implementation Strategy
+
+**Phase 1: Data Preparation**
+- Download AI4Privacy dataset (209k examples)
+- Implement character-position-aware STT noise pipeline
+- Validate entity span alignment after noise injection
+
+**Phase 2: Dataset Generation**
+- Apply STT noise with multiple preset levels (clean, realistic, noisy)
+- Create train/dev/test splits maintaining original proportions
+- Generate multiple noise variants per example for augmentation
+
+**Phase 3: Model Training**
+- Start from bert-pii-detection checkpoint
+- Fine-tune on STT-noised data
+- Evaluate on both clean and noisy test sets
+
+**Phase 4: Evaluation**
+- Benchmark against clean-text models
+- Measure robustness to varying noise levels
+- Compare with rule-based STT-specific approaches
+
+### Why This Wasn't Done in Assignment
+
+**Time Constraints:**
+- Assignment duration: 2 hours
+- Dataset preparation alone would require several days
+- Character-position tracking during noise injection is complex
+
+**Resource Limitations:**
+- AI4Privacy dataset is 381 MB download
+- Training on 200k examples requires GPU resources
+- Validation and quality control need extensive compute
+
+**Scope:**
+- Assignment focuses on demonstrating ML approach, not production scale
+- 900 training samples sufficient to prove concept
+- Custom generation allows full control over noise parameters
+
+### Expected Performance Improvement
+
+Based on the literature and dataset scale:
+
+**Current Approach (900 samples):**
+- PII Precision: 0.62-0.69 (Baseline/Method1)
+- Best: 0.96-0.98 (Method2, but overfits)
+
+**Expected with AI4Privacy + STT Noise (200k samples):**
+- PII Precision: 0.85-0.92 (robust generalization)
+- Better recall on rare PII types
+- Improved handling of novel phrasings
+- More consistent performance across domains
+
+### Conclusion
+
+The current synthetic generation approach with 44 templates successfully demonstrates the PII NER concept within assignment constraints. However, for production deployment, combining large-scale curated datasets like AI4Privacy with our STT noise simulation methodology would yield:
+
+1. Superior model performance through scale
+2. Better generalization across domains and PII types
+3. Maintained STT-specific robustness through our noise pipeline
+4. Reduced development time by leveraging existing validated data
+
+This hybrid approach represents the optimal balance between leveraging community resources and addressing the specific challenges of PII detection in speech-to-text transcripts.
