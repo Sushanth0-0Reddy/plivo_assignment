@@ -365,13 +365,6 @@ Note: The dev sample uses a completely different sentence structure not seen dur
 2. STT Generalization: Can the model handle diverse noise patterns it hasn't seen?
 3. True Generalization: Does the model learn entity patterns versus memorizing positions?
 
-#### When to Use
-
-- Production deployment preparation
-- Research on model generalization
-- Testing robustness to novel phrasing
-- Realistic performance assessment
-
 ---
 
 ### Method : Template Overlap Allowed
@@ -424,13 +417,6 @@ Note: Same template structure, different entity value, different spacing pattern
 1. PII Recognition: Can the model identify PII entities in familiar contexts?
 2. STT Noise Handling: Can the model handle spacing variations and noise?
 3. Upper Bound Performance: What's the best achievable accuracy without generalization challenges?
-
-#### When to Use
-
-- Establishing performance upper bounds
-- Debugging entity recognition issues
-- Testing STT noise robustness in isolation
-- Understanding overfitting potential
 
 ---
 
