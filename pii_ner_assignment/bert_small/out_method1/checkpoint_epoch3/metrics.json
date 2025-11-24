@@ -1,0 +1,52 @@
+{
+  "overall": {
+    "pii_precision_micro": 0.5536480686695279,
+    "pii_recall_micro": 0.7166666666666667,
+    "pii_f1_micro": 0.6246973365617434,
+    "overall_precision_micro": 0.5210355987055016,
+    "overall_recall_micro": 0.6571428571428571,
+    "overall_f1_micro": 0.5812274368231047
+  },
+  "per_entity": {
+    "CITY": {
+      "precision": 0.4657534246575342,
+      "recall": 1.0,
+      "f1": 0.6355140186915887
+    },
+    "CREDIT_CARD": {
+      "precision": 0.631578947368421,
+      "recall": 0.8181818181818182,
+      "f1": 0.712871287128713
+    },
+    "DATE": {
+      "precision": 0.25,
+      "recall": 0.25,
+      "f1": 0.25
+    },
+    "EMAIL": {
+      "precision": 0.7380952380952381,
+      "recall": 0.7380952380952381,
+      "f1": 0.7380952380952381
+    },
+    "LOCATION": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "PERSON_NAME": {
+      "precision": 0.7096774193548387,
+      "recall": 0.7586206896551724,
+      "f1": 0.7333333333333333
+    },
+    "PHONE": {
+      "precision": 0.4050632911392405,
+      "recall": 0.7804878048780488,
+      "f1": 0.5333333333333333
+    }
+  },
+  "latency": {
+    "p50_ms": 8.95,
+    "p95_ms": 10.61,
+    "runs": 30
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "macro_f1": 0.04715560190012745,
+  "overall_precision": 0.12365591397849462,
+  "overall_recall": 0.09274193548387097,
+  "overall_f1": 0.10599078341013826,
+  "per_entity": {
+    "CITY": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "CREDIT_CARD": {
+      "precision": 0.0784313725490196,
+      "recall": 0.19047619047619047,
+      "f1": 0.1111111111111111
+    },
+    "DATE": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "EMAIL": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "LOCATION": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "PERSON_NAME": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0
+    },
+    "PHONE": {
+      "precision": 0.17857142857142858,
+      "recall": 0.2830188679245283,
+      "f1": 0.21897810218978103
+    }
+  },
+  "pii": {
+    "precision": 0.15591397849462366,
+    "recall": 0.15675675675675677,
+    "f1": 0.1563342318059299
+  },
+  "non_pii": {
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0
+  }
+}
